@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מוני נחיתות</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for custom colors and font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#3b82f6', // כחול
+                        'secondary': '#f97316', // כתום
+                        'accent': '#10b981', // ירוק אזמרגד
+                        'forth': '#f59e0b', // ענבר
+                        'bg-dark': '#0f172a', // כחול כהה (Slate-900)
+                        'card-bg': '#1e293b', // אפור כהה (Slate-800)
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* סגנונות מותאמים אישית לקריאות וריכוז */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* bg-dark */
+            color: #f1f5f9; /* טקסט בהיר */
+            min-height: 100vh;
+            display: flex;
+            /* מרכוז כללי של התוכן */
+            justify-content: center;
+            align-items: center; 
+            padding: 3rem 1rem; /* הגדלת ריפוד עליון לאחר הסרת הכותרת */
+        }
+        .time-display {
+            font-family: monospace;
+            font-size: 2.5rem;
+            line-height: 1.1;
+            font-weight: 800;
+        }
+        /* שינוי גודל גופן במסכים גדולים יותר עבור 4 טיימרים */
+        @media (min-width: 768px) {
+            .time-display {
+                font-size: 2.2rem;
+            }
+        }
+        @media (min-width: 1024px) {
+            .time-display {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="w-full max-w-7xl p-4">
+    <!-- הכותרת הוסרה כבקשתך -->
+
+    <div id="counters-container" class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- המונים יוזרקו כאן על ידי JavaScript -->
+    </div>
+</div>
+
+<script>
+    // --- תצורה ומצב ראשוני ---
+
+    // הגדרת תאריכי היעד הקבועים לאירועים. כל התאריכים הם לשנת 2025.
+    const initialCountersConfig = [
+        {
+            id: 1,
+            name: "נחיתה סער הילית וירדן",
+            // 7 בדצמבר 2025, 00:35 בבוקר שעון ישראל (+02:00)
+            targetDateString: "2025-12-07T00:35:00+02:00",
+            color: 'text-primary',
+            originalExpiration: "7 בדצמבר, 00:35 בבוקר (שעון ישראל)"
+        },
+        {
+            id: 2,
+            name: "נחיתה רומי",
+            // 7 בדצמבר 2025, 4:05 אחר הצהריים שעון ישראל (16:05)
+            targetDateString: "2025-12-07T16:05:00+02:00",
+            color: 'text-secondary',
+            originalExpiration: "7 בדצמבר, 16:05 אחר הצהריים (שעון ישראל)"
+        },
+        {
+            id: 3,
+            name: "נחיתה אריאל",
+            // 8 בדצמבר 2025, 2:00 בבוקר שעון ישראל (02:00)
+            targetDateString: "2025-12-08T02:00:00+02:00",
+            color: 'text-accent',
+            originalExpiration: "8 בדצמבר, 02:00 בבוקר (שעון ישראל)"
+        },
+        {
+            id: 4,
+            name: "נחיתה לי",
+            // 9 בדצמבר 2025, 5:05 אחר הצהריים שעון ישראל (17:05)
+            targetDateString: "2025-12-09T17:05:00+02:00",
+            color: 'text-forth',
+            originalExpiration: "9 בדצמבר, 17:05 אחר הצהריים (שעון ישראל)"
+        },
+    ];
+
+    let counters = initialCountersConfig.map(c => ({
+        ...c,
+        targetTimestamp: new Date(c.targetDateString).getTime(),
+        intervalId: null,
+    }));
+
+    const container = document.getElementById('counters-container');
+
+    // פונקציית עזר לעיצוב סך השניות לפורמט HHH:MM:SS
+    function formatTime(totalSeconds) {
+        if (typeof totalSeconds !== 'number' || totalSeconds < 0) {
+            // הצגת 00:00:00 באדום כאשר פג התוקף
+            return '<span class="text-red-500">00:00:00</span>';
+        }
+
+        // חישוב סך השעות (מצטבר מכל הימים)
+        const totalHours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = Math.floor(totalSeconds % 60);
+
+        // פונקציית ריפוד ל-2 ספרות
+        const pad = (num) => String(num).padStart(2, '0');
+
+        // השעות אינן מרופדות כדי לאפשר הצגה של יותר מ-99 שעות.
+        return `${totalHours}:${pad(minutes)}:${pad(seconds)}`;
+    }
+
+    // פונקציה לחישוב שניות שנותרו
+    function getRemainingSeconds(targetTimestamp) {
+        const remainingMs = targetTimestamp - Date.now();
+        return Math.max(0, Math.floor(remainingMs / 1000));
+    }
+
+    // פונקציה לעדכון התצוגה של מונה אחד בכל שנייה
+    function updateCountdown(counter) {
+        const remainingSeconds = getRemainingSeconds(counter.targetTimestamp);
+        let counterDiv = document.getElementById(`counter-${counter.id}`);
+
+        // קבלת האלמנט המציג את הזמן
+        const timeDisplayElement = counterDiv ? counterDiv.querySelector('.time-display-value') : null;
+
+        if (timeDisplayElement) {
+            // בדיקה אם פג התוקף של הטיימר
+            if (remainingSeconds <= 0) {
+                // עצירת האינטרוול אם הוא עדיין פועל
+                if (counter.intervalId) {
+                    clearInterval(counter.intervalId);
+                    counter.intervalId = null;
+                }
+                // הצגת 00:00:00 באדום
+                timeDisplayElement.innerHTML = formatTime(-1);
+            } else {
+                // הצגת הזמן הנותר
+                timeDisplayElement.textContent = formatTime(remainingSeconds);
+            }
+        }
+    }
+
+    // פונקציה לרינדור מבנה הכרטיס הסטטי של מונה אחד
+    function renderCounter(counter) {
+        const counterElementId = `counter-${counter.id}`;
+        let counterDiv = document.getElementById(counterElementId);
+        const remainingSeconds = getRemainingSeconds(counter.targetTimestamp);
+
+        if (!counterDiv) {
+            counterDiv = document.createElement('div');
+            counterDiv.id = counterElementId;
+            counterDiv.className = 'bg-card-bg p-6 rounded-xl shadow-xl flex flex-col items-center justify-between min-h-[180px]';
+            container.appendChild(counterDiv);
+        }
+
+        // הגדרת התוכן
+        counterDiv.innerHTML = `
+            <div dir="rtl" class="text-center w-full mb-6">
+                <h2 class="text-2xl font-bold mb-1 break-words">${counter.name}</h2>
+                <p class="text-sm text-gray-400 font-mono">${counter.originalExpiration}</p>
+            </div>
+
+            <div class="time-display font-mono p-4 rounded-lg w-full text-center bg-gray-900 shadow-inner">
+                <div class="time-display-value ${counter.color} transition-colors duration-500">
+                    ${formatTime(remainingSeconds)}
+                </div>
+            </div>
+        `;
+    }
+
+    // פונקציה להפעלת לולאת הספירה האוטומטית
+    function startAutomaticCountdown(counter) {
+        // רינדור ראשוני ועדכון מיידי
+        renderCounter(counter);
+        updateCountdown(counter);
+
+        // אם פג התוקף, אין צורך להפעיל אינטרוול
+        if (getRemainingSeconds(counter.targetTimestamp) <= 0) {
+            return;
+        }
+        
+        // הפעלת אינטרוול לעדכון בכל שנייה
+        if (counter.intervalId) clearInterval(counter.intervalId);
+
+        counter.intervalId = setInterval(() => {
+            updateCountdown(counter);
+        }, 1000);
+    }
+
+    // אתחול כל המונים בטעינת הדף
+    function initializeApp() {
+        counters.forEach(startAutomaticCountdown);
+    }
+
+    // הפעלת האפליקציה בטעינת החלון
+    window.onload = initializeApp;
+</script>
+
+</body>
+</html>
+
